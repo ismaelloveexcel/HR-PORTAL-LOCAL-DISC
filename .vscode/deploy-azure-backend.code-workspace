@@ -1,0 +1,9 @@
+{
+  "folders": [
+    { "path": "../backend" }
+  ],
+  "settings": {
+    "azureAppService.deploySubpath": "app",
+    "azureAppService.pythonVersion": "3.11"
+  }
+}

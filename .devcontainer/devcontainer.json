@@ -1,0 +1,37 @@
+{
+	"name": "HR Portal - Ready to Run",
+	"image": "mcr.microsoft.com/devcontainers/universal:2",
+	"features": {
+		"ghcr.io/wxw-matt/devcontainer-features/command_runner:0": {},
+		"ghcr.io/wxw-matt/devcontainer-features/script_runner:0": {}
+	},
+	"forwardPorts": [5000, 8000],
+	"portsAttributes": {
+		"5000": {
+			"label": "HR Portal (Frontend)",
+			"onAutoForward": "notify",
+			"visibility": "private"
+		},
+		"8000": {
+			"label": "API Server (Backend)",
+			"onAutoForward": "silent",
+			"visibility": "private"
+		}
+	},
+	"postCreateCommand": "bash .devcontainer/setup.sh",
+	"postStartCommand": "bash .devcontainer/start.sh",
+	"customizations": {
+		"vscode": {
+			"settings": {
+				"python.defaultInterpreterPath": "/usr/local/python/current/bin/python",
+				"python.terminal.activateEnvironment": true
+			},
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"dbaeumer.vscode-eslint",
+				"bradlc.vscode-tailwindcss"
+			]
+		}
+	}
+}

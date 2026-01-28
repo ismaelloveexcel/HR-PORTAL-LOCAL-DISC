@@ -1,0 +1,136 @@
+# Auto-label PRs based on files changed
+# See: https://github.com/actions/labeler
+
+# Backend changes
+backend:
+  - changed-files:
+    - any-glob-to-any-file: 'backend/**/*'
+
+# Frontend changes
+frontend:
+  - changed-files:
+    - any-glob-to-any-file: 'frontend/**/*'
+
+# Database changes
+database:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'backend/alembic/**/*'
+      - 'backend/**/*models*.py'
+      - 'backend/**/*repository*.py'
+      - '**/*migration*.py'
+
+# Documentation changes
+documentation:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.md'
+      - 'docs/**/*'
+
+# Configuration changes
+configuration:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.yml'
+      - '**/*.yaml'
+      - '**/*.json'
+      - '**/*.toml'
+      - '**/*.ini'
+      - '.github/**/*'
+      - '**/config*.py'
+
+# Dependencies
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'backend/pyproject.toml'
+      - 'backend/requirements.txt'
+      - 'backend/uv.lock'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+
+# Security-related
+security:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/security*.py'
+      - '**/auth*.py'
+      - '.github/workflows/security*.yml'
+      - 'SECURITY.md'
+
+# UAE Compliance features
+uae-compliance:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*compliance*.py'
+      - '**/*visa*.py'
+      - '**/*emirates*.py'
+      - '**/*medical*.py'
+      - '**/*iloe*.py'
+      - '**/*contract*.py'
+
+# HR features
+hr-feature:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/employee*.py'
+      - '**/renewal*.py'
+      - '**/onboarding*.py'
+      - '**/recruitment*.py'
+      - 'docs/HR_*.md'
+
+# API changes
+api:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/routers/**/*'
+      - '**/schemas/**/*'
+      - '**/services/**/*'
+
+# UI changes
+ui:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'frontend/src/components/**/*'
+      - 'frontend/src/**/*.css'
+      - 'frontend/src/App.tsx'
+
+# Testing
+testing:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/tests/**/*'
+      - '**/*test*.py'
+      - '**/*.test.tsx'
+      - '**/*.test.ts'
+
+# Infrastructure/Deployment
+deployment:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/deploy*.yml'
+      - 'deploy*.sh'
+      - 'Dockerfile'
+      - 'docker-compose*.yml'
+      - 'staticwebapp.config.json'
+
+# GitHub Actions/Workflows
+github-actions:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**/*'
+
+# Copilot/Agents
+copilot:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/agents/**/*'
+      - '.github/copilot-instructions.md'
+      - 'docs/COPILOT*.md'
+
+# Breaking changes (based on file patterns that typically indicate breaking changes)
+breaking-change:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/models/**/*'
+      - 'backend/alembic/versions/*'

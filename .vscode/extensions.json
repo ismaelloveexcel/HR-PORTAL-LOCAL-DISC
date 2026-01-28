@@ -1,0 +1,44 @@
+{
+  "recommendations": [
+    // Python extensions
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "ms-python.black-formatter",
+    
+    // JavaScript/TypeScript extensions
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    
+    // React extensions
+    "dsznajder.es7-react-js-snippets",
+    
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+    
+    // Git extensions
+    "eamodio.gitlens",
+    
+    // Database extensions
+    "ckolkman.vscode-postgres",
+    
+    // REST API testing
+    "humao.rest-client",
+    
+    // Docker (if needed later)
+    "ms-azuretools.vscode-docker",
+    
+    // Azure extensions for deployment
+    "ms-azuretools.vscode-azureappservice",
+    "ms-azuretools.vscode-azureresourcegroups",
+    "ms-vscode.azure-account",
+    
+    // GitHub Copilot
+    "GitHub.copilot",
+    "GitHub.copilot-chat",
+    
+    // Utilities
+    "christian-kohler.path-intellisense",
+    "visualstudioexptteam.vscodeintellicode",
+    "streetsidesoftware.code-spell-checker"
+  ]
+}

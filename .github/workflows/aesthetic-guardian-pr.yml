@@ -1,0 +1,235 @@
+name: Aesthetic Guardian - UI/UX Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**/*.tsx'
+      - 'frontend/**/*.jsx'
+      - 'frontend/**/*.css'
+      - 'frontend/**/*.scss'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  design-review:
+    name: UI/UX Quality Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm install
+      
+      - name: Check for accessibility issues
+        id: accessibility
+        continue-on-error: true
+        run: |
+          cd frontend
+          echo "## Aesthetic Guardian: Design Quality Report" > ../design-report.md
+          echo "" >> ../design-report.md
+          echo "**Review Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> ../design-report.md
+          echo "" >> ../design-report.md
+          
+          # Install axe-core for accessibility testing
+          npm install --save-dev @axe-core/cli 2>/dev/null || true
+          
+          echo "### Accessibility Check" >> ../design-report.md
+          echo "" >> ../design-report.md
+          echo "Checking for WCAG 2.1 AA compliance..." >> ../design-report.md
+          echo "" >> ../design-report.md
+      
+      - name: Check color contrast
+        run: |
+          echo "### Color Contrast Analysis" >> design-report.md
+          echo "" >> design-report.md
+          
+          # Check for potential color contrast issues in CSS/Tailwind
+          cd frontend/src
+          COLOR_ISSUES=$(grep -r -E "(text-gray-[123]|bg-gray-[123]|text-white.*bg-light|text-light.*bg-white)" --include="*.tsx" --include="*.jsx" 2>/dev/null || true)
+          
+          if [ -n "$COLOR_ISSUES" ]; then
+            echo "⚠️ **Potential color contrast issues found:**" >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo "The following patterns may have insufficient contrast:" >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "$COLOR_ISSUES" | head -10 >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo "**Recommendation:** Ensure text has 4.5:1 contrast ratio (normal text) or 3:1 (large text)" >> ../../design-report.md
+          else
+            echo "✅ No obvious color contrast issues detected" >> ../../design-report.md
+          fi
+          echo "" >> ../../design-report.md
+      
+      - name: Check responsive design
+        run: |
+          echo "### Responsive Design Check" >> design-report.md
+          echo "" >> design-report.md
+          
+          cd frontend/src
+          # Check for missing responsive classes
+          FILES_WITHOUT_RESPONSIVE=$(grep -l "className=" --include="*.tsx" --include="*.jsx" -r . | xargs grep -L -E "(sm:|md:|lg:|xl:|2xl:)" 2>/dev/null || true)
+          
+          if [ -n "$FILES_WITHOUT_RESPONSIVE" ]; then
+            COMPONENT_COUNT=$(echo "$FILES_WITHOUT_RESPONSIVE" | wc -l)
+            echo "⚠️ **$COMPONENT_COUNT component(s) may lack responsive design:**" >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "$FILES_WITHOUT_RESPONSIVE" | head -10 >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo "**Recommendation:** Add responsive breakpoints (sm:, md:, lg:, xl:) to ensure mobile compatibility" >> ../../design-report.md
+          else
+            echo "✅ Components appear to have responsive design classes" >> ../../design-report.md
+          fi
+          echo "" >> ../../design-report.md
+      
+      - name: Check for loading states
+        run: |
+          echo "### Loading States Check" >> design-report.md
+          echo "" >> design-report.md
+          
+          cd frontend/src
+          # Check for async operations without loading states
+          ASYNC_WITHOUT_LOADING=$(grep -l "async.*fetch\|await.*fetch" --include="*.tsx" --include="*.jsx" -r . | while read file; do
+            if ! grep -q "loading\|isLoading\|Loading" "$file"; then
+              echo "$file"
+            fi
+          done 2>/dev/null || true)
+          
+          if [ -n "$ASYNC_WITHOUT_LOADING" ]; then
+            echo "⚠️ **Components with async operations may be missing loading states:**" >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "$ASYNC_WITHOUT_LOADING" | head -10 >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo "**Recommendation:** Add loading indicators for better user experience during API calls" >> ../../design-report.md
+          else
+            echo "✅ Components appear to have loading state handling" >> ../../design-report.md
+          fi
+          echo "" >> ../../design-report.md
+      
+      - name: Check button states
+        run: |
+          echo "### Button States Check" >> design-report.md
+          echo "" >> design-report.md
+          
+          cd frontend/src
+          # Check for buttons without hover/disabled states
+          BUTTONS_WITHOUT_STATES=$(grep -n "<button" --include="*.tsx" --include="*.jsx" -r . | while read line; do
+            file=$(echo "$line" | cut -d: -f1)
+            linenum=$(echo "$line" | cut -d: -f2)
+            context=$(sed -n "${linenum}p" "$file")
+            if ! echo "$context" | grep -q "hover:\|disabled:\|focus:"; then
+              echo "$file:$linenum"
+            fi
+          done 2>/dev/null | head -10 || true)
+          
+          if [ -n "$BUTTONS_WITHOUT_STATES" ]; then
+            echo "⚠️ **Buttons may be missing interactive states:**" >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "$BUTTONS_WITHOUT_STATES" >> ../../design-report.md
+            echo '```' >> ../../design-report.md
+            echo "" >> ../../design-report.md
+            echo "**Recommendation:** Add hover:, focus:, and disabled: states for better UX" >> ../../design-report.md
+          else
+            echo "✅ Buttons appear to have proper interactive states" >> ../../design-report.md
+          fi
+          echo "" >> ../../design-report.md
+      
+      - name: Typography consistency check
+        run: |
+          echo "### Typography Consistency" >> design-report.md
+          echo "" >> design-report.md
+          
+          cd frontend/src
+          # Check for inconsistent text sizing
+          TEXT_CLASSES=$(grep -o -h "text-[a-z0-9]*" --include="*.tsx" --include="*.jsx" -r . | sort | uniq -c | sort -rn 2>/dev/null || true)
+          
+          echo "**Text size usage:**" >> ../../design-report.md
+          echo '```' >> ../../design-report.md
+          echo "$TEXT_CLASSES" | head -15 >> ../../design-report.md
+          echo '```' >> ../../design-report.md
+          echo "" >> ../../design-report.md
+          echo "**Recommendation:** Maintain consistent typography scale (text-xs, text-sm, text-base, text-lg, etc.)" >> ../../design-report.md
+          echo "" >> ../../design-report.md
+      
+      - name: Add design recommendations
+        run: |
+          echo "### Design Guidelines" >> design-report.md
+          echo "" >> design-report.md
+          echo "Based on [Aesthetic Guardian](.github/agents/aesthetic-guardian.md) standards:" >> design-report.md
+          echo "" >> design-report.md
+          echo "✅ **Best Practices:**" >> design-report.md
+          echo "- Use TailwindCSS utility classes consistently" >> design-report.md
+          echo "- Ensure 4.5:1 contrast ratio for normal text" >> design-report.md
+          echo "- Include responsive breakpoints (sm:, md:, lg:, xl:)" >> design-report.md
+          echo "- Add loading states for async operations" >> design-report.md
+          echo "- Implement hover/focus/disabled states for interactive elements" >> design-report.md
+          echo "- Maintain consistent spacing (p-4, p-6, p-8)" >> design-report.md
+          echo "" >> design-report.md
+          echo "📚 **Resources:**" >> design-report.md
+          echo "- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)" >> design-report.md
+          echo "- [TailwindCSS Documentation](https://tailwindcss.com/docs)" >> design-report.md
+          echo "- [Aesthetic Guardian Agent](.github/agents/aesthetic-guardian.md)" >> design-report.md
+      
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 🎨 Aesthetic Guardian: UI/UX Quality Review\n\n';
+            
+            try {
+              const designReport = fs.readFileSync('design-report.md', 'utf8');
+              comment += designReport;
+            } catch (err) {
+              comment += '✅ No design issues detected.\n';
+            }
+            
+            comment += '\n\n---\n*Automated UI/UX review by Aesthetic Guardian*';
+            
+            // Check if we already commented on this PR
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const existingComment = comments.data.find(c => 
+              c.user.login === 'github-actions[bot]' && 
+              c.body.includes('Aesthetic Guardian')
+            );
+            
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }

@@ -1,0 +1,371 @@
+name: Code Quality Monitor
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * 1'  # Weekly on Monday at 3 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Initialize Report
+        run: |
+          echo "## 📊 Code Quality Monitor Report" > quality-report.md
+          echo "" >> quality-report.md
+          echo "**Scan Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> quality-report.md
+          echo "" >> quality-report.md
+      
+      # ===== BACKEND QUALITY CHECKS =====
+      
+      - name: Install Python Quality Tools
+        run: |
+          pip install flake8 pylint mypy radon vulture
+      
+      - name: Python Linting (Flake8)
+        id: flake8
+        continue-on-error: true
+        run: |
+          echo "### Backend: Python Linting (Flake8)" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd backend
+          flake8 app --count --select=E9,F63,F7,F82 --show-source --statistics > ../flake8-critical.txt 2>&1 || true
+          flake8 app --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics > ../flake8-full.txt 2>&1 || true
+          
+          CRITICAL_COUNT=$(wc -l < ../flake8-critical.txt)
+          if [ "$CRITICAL_COUNT" -gt 0 ]; then
+            echo "⚠️ **Critical Issues Found:** $CRITICAL_COUNT" >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+            head -20 ../flake8-critical.txt >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+          else
+            echo "✅ No critical Python linting issues" >> ../quality-report.md
+          fi
+          echo "" >> ../quality-report.md
+      
+      - name: Python Type Checking (mypy)
+        id: mypy
+        continue-on-error: true
+        run: |
+          echo "### Backend: Type Safety (mypy)" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd backend
+          # Require an explicit mypy configuration; do not create a permissive default
+          if [ ! -f "mypy.ini" ] && [ ! -f "pyproject.toml" ]; then
+            echo "Mypy is not configured for the backend (no mypy.ini or pyproject.toml found)." >> ../quality-report.md
+            echo "Please add a mypy configuration file to the backend/ directory and re-run this workflow." >> ../quality-report.md
+            exit 1
+          fi
+          
+          mypy app 2>&1 | head -30 > ../mypy-report.txt || true
+          
+          ERROR_COUNT=$(grep -c "error:" ../mypy-report.txt || echo "0")
+          echo "**Type Errors:** $ERROR_COUNT" >> ../quality-report.md
+          
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "" >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+            head -15 ../mypy-report.txt >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+          else
+            echo "✅ No type errors detected" >> ../quality-report.md
+          fi
+          echo "" >> ../quality-report.md
+      
+      - name: Python Complexity Analysis (Radon)
+        id: radon
+        continue-on-error: true
+        run: |
+          echo "### Backend: Code Complexity (Radon)" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd backend
+          radon cc app -a -s > ../radon-report.txt 2>&1 || true
+          
+          # Check for high complexity (C, D, E, F grades)
+          HIGH_COMPLEXITY=$(grep -E "^\s+[CDEF]\s+" ../radon-report.txt | wc -l || echo "0")
+          
+          echo "**High Complexity Functions:** $HIGH_COMPLEXITY" >> ../quality-report.md
+          
+          if [ "$HIGH_COMPLEXITY" -gt 0 ]; then
+            echo "" >> ../quality-report.md
+            echo "⚠️ Functions with complexity grade C or higher:" >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+            grep -E "^\s+[CDEF]\s+" ../radon-report.txt | head -10 >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+          else
+            echo "✅ All functions have acceptable complexity" >> ../quality-report.md
+          fi
+          echo "" >> ../quality-report.md
+      
+      - name: Dead Code Detection (Vulture)
+        id: vulture
+        continue-on-error: true
+        run: |
+          echo "### Backend: Dead Code Detection (Vulture)" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd backend
+          vulture app --min-confidence 80 > ../vulture-report.txt 2>&1 || true
+          
+          DEAD_CODE_COUNT=$(wc -l < ../vulture-report.txt)
+          
+          echo "**Potential Dead Code:** $DEAD_CODE_COUNT items" >> ../quality-report.md
+          
+          if [ "$DEAD_CODE_COUNT" -gt 0 ]; then
+            echo "" >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+            head -15 ../vulture-report.txt >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+          else
+            echo "✅ No dead code detected" >> ../quality-report.md
+          fi
+          echo "" >> ../quality-report.md
+      
+      # ===== FRONTEND QUALITY CHECKS =====
+      
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm install 2>/dev/null || true
+      
+      - name: TypeScript Compilation Check
+        id: typescript
+        continue-on-error: true
+        run: |
+          echo "### Frontend: TypeScript Compilation" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd frontend
+          npx tsc --noEmit 2>&1 | head -30 > ../typescript-report.txt || true
+          
+          ERROR_COUNT=$(grep -c "error TS" ../typescript-report.txt || echo "0")
+          
+          echo "**TypeScript Errors:** $ERROR_COUNT" >> ../quality-report.md
+          
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "" >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+            head -15 ../typescript-report.txt >> ../quality-report.md
+            echo '```' >> ../quality-report.md
+          else
+            echo "✅ No TypeScript errors" >> ../quality-report.md
+          fi
+          echo "" >> ../quality-report.md
+      
+      - name: Check for 'any' Types
+        id: any_types
+        run: |
+          echo "### Frontend: Type Safety (any usage)" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd frontend/src
+          ANY_COUNT=$(grep -r ": any" --include="*.ts" --include="*.tsx" | wc -l || echo "0")
+          
+          # Threshold: more than 5 'any' types suggests need for better typing
+          ANY_THRESHOLD=5
+          
+          echo "**Usage of 'any' type:** $ANY_COUNT occurrences" >> ../../quality-report.md
+          
+          if [ "$ANY_COUNT" -gt $ANY_THRESHOLD ]; then
+            echo "" >> ../../quality-report.md
+            echo "⚠️ Consider reducing 'any' usage for better type safety:" >> ../../quality-report.md
+            echo '```' >> ../../quality-report.md
+            grep -r ": any" --include="*.ts" --include="*.tsx" | head -10 >> ../../quality-report.md
+            echo '```' >> ../../quality-report.md
+          else
+            echo "✅ Acceptable 'any' usage" >> ../../quality-report.md
+          fi
+          echo "" >> ../../quality-report.md
+      
+      - name: Check React Best Practices
+        id: react_check
+        run: |
+          echo "### Frontend: React Best Practices" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          cd frontend/src
+          
+          # Check for missing key props
+          MISSING_KEYS=$(grep -r "\.map(" --include="*.tsx" | grep -v "key=" | wc -l || echo "0")
+          echo "- **Potential missing key props:** $MISSING_KEYS" >> ../../quality-report.md
+          
+          # Check for useEffect without dependencies
+          EMPTY_DEPS=$(grep -r "useEffect.*\[\]" --include="*.tsx" | wc -l || echo "0")
+          TOTAL_EFFECTS=$(grep -r "useEffect" --include="*.tsx" | wc -l || echo "0")
+          echo "- **useEffect hooks:** $TOTAL_EFFECTS total, $EMPTY_DEPS with empty deps" >> ../../quality-report.md
+          
+          # Check for console.log statements (threshold: 10 is acceptable for debugging)
+          CONSOLE_LOG_THRESHOLD=10
+          CONSOLE_LOGS=$(grep -r "console.log" --include="*.tsx" --include="*.ts" | wc -l || echo "0")
+          echo "- **Console.log statements:** $CONSOLE_LOGS" >> ../../quality-report.md
+          
+          if [ "$CONSOLE_LOGS" -gt $CONSOLE_LOG_THRESHOLD ]; then
+            echo "  ⚠️ Consider removing console.log statements before production" >> ../../quality-report.md
+          fi
+          
+          echo "" >> ../../quality-report.md
+      
+      # ===== CODE METRICS =====
+      
+      - name: Calculate Code Metrics
+        id: metrics
+        run: |
+          echo "### Code Metrics Summary" >> quality-report.md
+          echo "" >> quality-report.md
+          
+          # Count lines of code
+          PYTHON_LOC=$(find backend/app -name "*.py" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+          TS_LOC=$(find frontend/src -name "*.tsx" -o -name "*.ts" -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0")
+          
+          echo "| Metric | Value |" >> quality-report.md
+          echo "|--------|-------|" >> quality-report.md
+          echo "| Python Lines of Code | $PYTHON_LOC |" >> quality-report.md
+          echo "| TypeScript Lines of Code | $TS_LOC |" >> quality-report.md
+          
+          # Count files
+          PYTHON_FILES=$(find backend/app -name "*.py" | wc -l || echo "0")
+          TS_FILES=$(find frontend/src -name "*.tsx" -o -name "*.ts" | wc -l || echo "0")
+          
+          echo "| Python Files | $PYTHON_FILES |" >> quality-report.md
+          echo "| TypeScript Files | $TS_FILES |" >> quality-report.md
+          
+          echo "" >> quality-report.md
+      
+      # ===== RECOMMENDATIONS =====
+      
+      - name: Generate Recommendations
+        run: |
+          echo "### Recommendations" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "Based on [Code Quality Monitor](.github/agents/code-quality-monitor.md) guidelines:" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "1. **Fix Critical Issues First:** Address any critical linting or security issues" >> quality-report.md
+          echo "2. **Improve Type Safety:** Reduce 'any' types and add type hints" >> quality-report.md
+          echo "3. **Reduce Complexity:** Refactor high-complexity functions" >> quality-report.md
+          echo "4. **Remove Dead Code:** Clean up unused imports and variables" >> quality-report.md
+          echo "5. **Follow Best Practices:** Ensure proper React patterns and Python conventions" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "---" >> quality-report.md
+          echo "*Automated code quality scan by Code Quality Monitor*" >> quality-report.md
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '';
+            
+            try {
+              comment = fs.readFileSync('quality-report.md', 'utf8');
+            } catch (err) {
+              comment = '## 📊 Code Quality Monitor\n\n✅ Quality check completed. See workflow logs for details.';
+            }
+            
+            // Check if we already commented
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const existingComment = comments.data.find(c => 
+              c.user.login === 'github-actions[bot]' && 
+              c.body.includes('Code Quality Monitor')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+      
+      - name: Create Weekly Report Issue
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '## 📊 Weekly Code Quality Report\n\n';
+            
+            try {
+              report += fs.readFileSync('quality-report.md', 'utf8');
+            } catch (err) {
+              report += 'Unable to generate full report. Check workflow logs.\n';
+            }
+            
+            // Check for existing weekly issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'code-quality-monitor,weekly-report',
+              per_page: 1
+            });
+            
+            const weekNumber = Math.ceil((new Date() - new Date(new Date().getFullYear(), 0, 1)) / 604800000);
+            const title = `📊 Weekly Code Quality Report - Week ${weekNumber}`;
+            
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: report,
+                labels: ['code-quality-monitor', 'weekly-report', 'automated']
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: '### Updated Report\n\n' + report
+              });
+            }
+      
+      - name: Upload Quality Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-report
+          path: quality-report.md
+          retention-days: 30

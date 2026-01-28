@@ -1,0 +1,52 @@
+name: Deploy Backend App Service
+
+# DISABLED: This workflow is redundant with deploy.yml which handles both frontend and backend
+# deploy.yml is the primary deployment workflow and includes concurrency controls
+# This workflow is kept for reference and can be manually triggered if needed
+on:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "backend/**"
+  #     - ".github/workflows/backend-appservice.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate publish profile secret
+        run: |
+          if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}" ]; then
+            echo "Missing AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND secret. Add the publish profile for hrportal-backend-new."
+            exit 1
+          fi
+
+      - name: Deploy to Azure App Service (hrportal-backend-new)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: hrportal-backend-new
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_BACKEND }}
+          package: backend
+
+      - name: Smoke test health endpoint
+        run: |
+          curl -f https://hrportal-backend-new.azurewebsites.net/api/health/ping

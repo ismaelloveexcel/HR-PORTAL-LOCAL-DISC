@@ -1,0 +1,20 @@
+name: Security Monitoring
+on:
+  schedule:
+    - cron: "0 0 * * *" # daily
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.13.1
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+      - name: Upload Trivy scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-report.json

@@ -1,0 +1,64 @@
+name: Deploy Frontend to Azure Static Web Apps
+
+# ACTIVE: Supplementary frontend deploy with concurrency to avoid conflicts.
+# deploy.yml remains the primary deploy; this workflow is serialized via
+# frontend-deployment group and can still be run manually if needed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'staticwebapp.config.json'
+  # PR deploys disabled to avoid exhausting SWA staging environments
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    name: Build and Deploy Frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          # API URL pointing to the backend App Service
+          VITE_API_BASE_URL: ${{ secrets.BACKEND_API_URL || 'https://baynunah-hr-portal.azurewebsites.net/api' }}
+
+      - name: Copy staticwebapp.config.json
+        run: cp staticwebapp.config.json frontend/dist/
+
+      - name: Deploy to Azure Static Web Apps
+        id: deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "frontend/dist"
+          skip_app_build: true
+          skip_api_build: true

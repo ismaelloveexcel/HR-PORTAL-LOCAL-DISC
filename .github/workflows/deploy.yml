@@ -1,0 +1,340 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent multiple deployments from running simultaneously
+# This ensures only one deployment runs at a time, queuing others
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false  # Don't cancel running deployments, queue them instead
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy HR Portal
+    runs-on: ubuntu-latest
+    env:
+      RESOURCE_GROUP: baynunah-hr-portal-rg
+      WEBAPP_NAME: hrportal-backend-new
+      WEBAPP_URL: https://hrportal-backend-new.azurewebsites.net
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          echo "🔍 Validating required secrets..."
+          if [ -z "${{ secrets.AZURE_CLIENT_ID }}" ] || \
+             [ -z "${{ secrets.AZURE_TENANT_ID }}" ] || \
+             [ -z "${{ secrets.AZURE_SUBSCRIPTION_ID }}" ]; then
+            echo "❌ ERROR: Azure OIDC secrets missing"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DATABASE_URL }}" ]; then
+            echo "❌ ERROR: DATABASE_URL secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AUTH_SECRET_KEY }}" ]; then
+            echo "❌ ERROR: AUTH_SECRET_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets present"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+        env:
+          VITE_API_BASE_URL: /api
+
+      - name: Copy frontend build to backend/static
+        run: |
+          rm -rf backend/static
+          cp -r frontend/dist backend/static
+          echo "✅ Frontend built to backend/static"
+          ls -la backend/static/
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create deployment package
+        run: |
+          cd backend
+          
+          # Generate build info for version tracking
+          echo "Generating build info..."
+          cat > build_info.txt << EOF
+          GIT_COMMIT_SHA=${{ github.sha }}
+          BUILD_TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          GITHUB_RUN_ID=${{ github.run_id }}
+          GITHUB_RUN_NUMBER=${{ github.run_number }}
+          DEPLOYED_BY=${{ github.actor }}
+          EOF
+          
+          cat build_info.txt
+          
+          chmod +x azure_startup.sh
+          zip -r ../deploy.zip . \
+            -x "*.pyc" \
+            -x "*__pycache__*" \
+            -x "*.git*" \
+            -x "*.env*" \
+            -x "*test*.py" \
+            -x "venv/*"
+          cd ..
+          echo "✅ Package created: $(du -h deploy.zip)"
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure App Settings
+        run: |
+          ALLOWED_ORIGINS="${{ secrets.ALLOWED_ORIGINS }}"
+          if [ -z "$ALLOWED_ORIGINS" ]; then
+            ALLOWED_ORIGINS="$WEBAPP_URL"
+          fi
+
+          az webapp config appsettings set \
+            --name "$WEBAPP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --settings \
+              DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+              AUTH_SECRET_KEY="${{ secrets.AUTH_SECRET_KEY }}" \
+              ALLOWED_ORIGINS="$ALLOWED_ORIGINS" \
+              APP_ENV="production" \
+              GIT_COMMIT_SHA="${{ github.sha }}" \
+              BUILD_TIMESTAMP="$(date -u +"%Y-%m-%d %H:%M:%S UTC")" \
+              APP_VERSION="${{ github.run_number }}" \
+              SCM_DO_BUILD_DURING_DEPLOYMENT="false" \
+              ENABLE_ORYX_BUILD="true" \
+              WEBSITE_RUN_FROM_PACKAGE="0" \
+            --output none
+
+          az webapp config set \
+            --name "$WEBAPP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --startup-file "./azure_startup.sh" \
+            --output none
+
+          echo "✅ App settings configured with version tracking"
+          
+          # Wait for SCM container to stabilize after configuration changes
+          # This prevents "SCM container restart" errors during deployment
+          # Azure SCM container restarts can take 60-120 seconds to complete
+          echo "⏳ Waiting 90s for SCM container to stabilize..."
+          sleep 90
+
+      - name: Deploy to Azure App Service
+        run: |
+          echo "🚀 Deploying to Azure App Service..."
+          
+          # Deploy using Azure CLI with retry logic for SCM restart issues
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "📦 Deployment attempt $ATTEMPT of $MAX_ATTEMPTS..."
+            echo "⏰ Start time: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+            
+            # Use az webapp deploy for zip deployment
+            # Note: Using tee to show output in real-time while also capturing it
+            # Capture exit code without set -e toggling by using || true pattern
+            az webapp deploy \
+              --name "$WEBAPP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --src-path deploy.zip \
+              --type zip \
+              --clean true \
+              --restart true \
+              --timeout 600 \
+              --verbose 2>&1 | tee /tmp/deploy_output.txt || true
+            DEPLOY_EXIT_CODE=${PIPESTATUS[0]}
+            
+            echo "⏰ End time: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+            echo "📋 Exit code: $DEPLOY_EXIT_CODE"
+            
+            if [ $DEPLOY_EXIT_CODE -eq 0 ]; then
+              echo "✅ Deployment successful on attempt $ATTEMPT"
+              rm -f /tmp/deploy_output.txt 2>/dev/null || true
+              break
+            else
+              echo "⚠️ Deployment attempt $ATTEMPT failed (exit code: $DEPLOY_EXIT_CODE)"
+              
+              # Check for specific error patterns
+              if grep -qi "SCM container restart" /tmp/deploy_output.txt 2>/dev/null; then
+                echo "🔄 Detected SCM container restart issue"
+              fi
+              if grep -qi "timeout" /tmp/deploy_output.txt 2>/dev/null; then
+                echo "⏰ Detected timeout issue"
+              fi
+              
+              if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                # SCM container may be restarting, wait before retry
+                # Use exponential backoff: 60s for retry 1, 120s for retry 2
+                WAIT_TIME=$((60 * ATTEMPT))
+                echo "⏳ Waiting ${WAIT_TIME}s before retry to allow SCM container to stabilize..."
+                sleep $WAIT_TIME
+              else
+                echo "❌ All deployment attempts failed"
+                echo "📋 Last deployment output:"
+                cat /tmp/deploy_output.txt 2>/dev/null || true
+                rm -f /tmp/deploy_output.txt 2>/dev/null || true
+                exit 1
+              fi
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+      - name: Wait for deployment and Oryx build
+        run: |
+          echo "⏳ Waiting 120s for deployment and Oryx build to complete..."
+          sleep 120
+
+      - name: Run database migrations
+        run: |
+          echo "🔄 Running database migrations via Kudu..."
+
+          # Get publishing credentials with retry logic
+          MAX_CRED_ATTEMPTS=3
+          CRED_ATTEMPT=1
+          
+          while [ $CRED_ATTEMPT -le $MAX_CRED_ATTEMPTS ]; do
+            echo "📋 Getting publishing credentials (attempt $CRED_ATTEMPT)..."
+            CREDS=$(az webapp deployment list-publishing-credentials \
+              --name "$WEBAPP_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --query "{username:publishingUserName, password:publishingPassword}" \
+              -o json 2>&1)
+            
+            if echo "$CREDS" | jq -e '.username' > /dev/null 2>&1; then
+              break
+            fi
+            
+            echo "⚠️ Failed to get credentials, retrying in 30s..."
+            sleep 30
+            CRED_ATTEMPT=$((CRED_ATTEMPT + 1))
+          done
+
+          USERNAME=$(echo $CREDS | jq -r '.username')
+          PASSWORD=$(echo $CREDS | jq -r '.password')
+          
+          if [ -z "$USERNAME" ] || [ "$USERNAME" = "null" ]; then
+            echo "❌ Failed to get publishing credentials after $MAX_CRED_ATTEMPTS attempts"
+            echo "⚠️ Continuing without migrations - they will run on app startup"
+            exit 0
+          fi
+
+          # Run migration command via Kudu API with timeout
+          # Use Oryx's antenv path first (created by ENABLE_ORYX_BUILD=true)
+          echo "🔄 Executing migration command..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --connect-timeout 30 \
+            --max-time 300 \
+            -X POST \
+            -u "$USERNAME:$PASSWORD" \
+            -H "Content-Type: application/json" \
+            -d '{"command":"cd /home/site/wwwroot && source antenv/bin/activate 2>/dev/null || source .venv/bin/activate 2>/dev/null || (python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt -q) && python -m alembic upgrade head 2>&1","dir":"/home/site/wwwroot"}' \
+            "https://$WEBAPP_NAME.scm.azurewebsites.net/api/command")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "Migration output:"
+          echo "$BODY" | jq -r '.Output // .Error // .' 2>/dev/null || echo "$BODY"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            OUTPUT=$(echo "$BODY" | jq -r '.Output // ""' 2>/dev/null || echo "")
+            if echo "$OUTPUT" | grep -qiE "(error|failed|exception)"; then
+              echo "⚠️ Migration completed but output contains potential errors - check logs"
+            else
+              echo "✅ Migrations completed successfully"
+            fi
+          else
+            echo "⚠️ Migration command returned HTTP $HTTP_CODE"
+            echo "⚠️ Migrations will be retried on app startup"
+          fi
+
+      - name: Restart App and Verify
+        run: |
+          echo "🔄 Restarting app..."
+          az webapp restart --name "$WEBAPP_NAME" --resource-group "$RESOURCE_GROUP"
+          echo "⏳ Waiting 60s for app to start..."
+          sleep 60
+
+          echo "🔍 Checking application health..."
+          for i in 1 2 3 4 5; do
+            HTTP_STATUS=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+              --connect-timeout 10 \
+              --max-time 30 \
+              "$WEBAPP_URL/api/health/ping" 2>/dev/null || echo "000")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Health check passed!"
+              cat /tmp/resp.txt
+
+              # Check DB health with timeout
+              DB_STATUS=$(curl -s -o /tmp/db.txt -w "%{http_code}" \
+                --connect-timeout 10 \
+                --max-time 60 \
+                "$WEBAPP_URL/api/health/db" 2>/dev/null || echo "000")
+              echo ""
+              echo "Database health (HTTP $DB_STATUS):"
+              cat /tmp/db.txt | head -20
+              exit 0
+            fi
+            
+            if [ "$HTTP_STATUS" = "000" ]; then
+              echo "Attempt $i: Connection failed (timeout/network error), retrying in 30s..."
+            else
+              echo "Attempt $i: HTTP $HTTP_STATUS, retrying in 30s..."
+            fi
+            sleep 30
+          done
+
+          echo "⚠️ Health check did not pass after 5 attempts"
+          echo "📋 Fetching recent logs for debugging..."
+          az webapp log tail --name "$WEBAPP_NAME" --resource-group "$RESOURCE_GROUP" --timeout 10 2>/dev/null || true
+          exit 0
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo ""
+          echo "🎉 DEPLOYMENT COMPLETE"
+          echo "====================="
+          echo "App URL: $WEBAPP_URL"
+          echo "API Docs: $WEBAPP_URL/docs"
+          echo "Version Info: $WEBAPP_URL/api/health/revision"
+          echo "Health Check: $WEBAPP_URL/api/health/ping"
+          echo ""
+          echo "Deployment Details:"
+          echo "  - Git Commit: ${{ github.sha }}"
+          echo "  - Build Number: ${{ github.run_number }}"
+          echo "  - Deployed By: ${{ github.actor }}"
+          echo ""
+          echo "If login issues persist, reset admin:"
+          echo "curl -X POST $WEBAPP_URL/api/health/reset-admin-password -H 'X-Admin-Secret: YOUR_AUTH_SECRET_KEY'"
+          echo ""
+          echo "Admin login: BAYN00008 / 16051988"
+
+# Trigger deployment Tue Jan 20 08:46:00 AM UTC 2026

@@ -1,0 +1,63 @@
+name: Automated Database Backup
+on:
+  schedule:
+    - cron: "0 2 * * *" # daily at 2am
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  backup:
+    name: Backup PostgreSQL Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secrets configuration
+        id: check-secrets
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+        run: |
+          if [ -z "$PGHOST" ] || [ -z "$PGUSER" ] || [ -z "$PGPASSWORD" ] || [ -z "$PGDATABASE" ]; then
+            echo "⚠️ Database backup skipped - PostgreSQL secrets not configured"
+            echo ""
+            echo "To enable automated backups, configure the following secrets:"
+            echo "  - PGHOST: PostgreSQL server hostname"
+            echo "  - PGUSER: PostgreSQL username"
+            echo "  - PGPASSWORD: PostgreSQL password"
+            echo "  - PGDATABASE: Database name"
+            echo ""
+            echo "Go to: Settings → Secrets and variables → Actions → New repository secret"
+            echo "secrets_configured=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ All required secrets are configured"
+            echo "secrets_configured=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Dump PostgreSQL database
+        if: steps.check-secrets.outputs.secrets_configured == 'true'
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+        run: |
+          pg_dump -h "$PGHOST" -U "$PGUSER" "$PGDATABASE" > backup.sql
+
+      - name: Upload backup
+        if: steps.check-secrets.outputs.secrets_configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_number }}
+          path: backup.sql
+          retention-days: 7
+
+# SETUP INSTRUCTIONS:
+#
+# 1. Add GitHub Secrets:
+#    - PGHOST: PostgreSQL server hostname (e.g., yourserver.postgres.database.azure.com)
+#    - PGUSER: PostgreSQL username
+#    - PGPASSWORD: PostgreSQL password
+#    - PGDATABASE: Database name
+#
+# 2. Test Manual Run:
+#    Go to Actions → Automated Database Backup → Run workflow

@@ -1,0 +1,30 @@
+{
+  "folders": [
+    { "path": ".." }
+  ],
+  "settings": {
+    "azureAppService.showExplorer": true,
+    "azureFunctions.showExplorer": false,
+    "azureStaticWebApps.showExplorer": false,
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "editor.formatOnSave": true,
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/*.pyc": true,
+      "**/node_modules": true,
+      "**/.git": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-azuretools.vscode-azureappservice",
+      "ms-azuretools.vscode-azureresourcegroups",
+      "ms-vscode.azure-account",
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "GitHub.copilot",
+      "GitHub.copilot-chat"
+    ]
+  }
+}

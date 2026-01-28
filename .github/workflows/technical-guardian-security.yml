@@ -1,0 +1,193 @@
+name: Technical Guardian - Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Python Security Check (Backend)
+        id: python_security
+        continue-on-error: true
+        run: |
+          cd backend
+          pip install safety bandit
+          echo "## Python Security Scan Results" > ../security-report.md
+          echo "" >> ../security-report.md
+          
+          echo "### Safety Check (Dependencies)" >> ../security-report.md
+          safety check --json > safety-report.json 2>&1 || true
+          if [ -f safety-report.json ]; then
+            VULN_COUNT=$(jq length safety-report.json 2>/dev/null || echo "0")
+            echo "Found $VULN_COUNT vulnerabilities in dependencies" >> ../security-report.md
+            echo "" >> ../security-report.md
+            if [ "$VULN_COUNT" != "0" ]; then
+              jq -r '.[] | "- **\(.package)** \(.version): \(.vulnerability)"' safety-report.json >> ../security-report.md 2>/dev/null || true
+            fi
+          fi
+          echo "" >> ../security-report.md
+          
+          echo "### Bandit Check (Code Security)" >> ../security-report.md
+          bandit -r app -f txt -o bandit-report.txt || true
+          if [ -f bandit-report.txt ]; then
+            cat bandit-report.txt >> ../security-report.md
+          fi
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: NPM Audit (Frontend)
+        id: npm_audit
+        continue-on-error: true
+        run: |
+          cd frontend
+          echo "" >> ../security-report.md
+          echo "## Frontend Security Scan Results" >> ../security-report.md
+          echo "" >> ../security-report.md
+          echo "### NPM Audit" >> ../security-report.md
+          npm audit --json > npm-audit.json 2>&1 || true
+          if [ -f npm-audit.json ]; then
+            VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' npm-audit.json)
+            echo "Found $VULN_COUNT vulnerabilities in npm packages" >> ../security-report.md
+            echo "" >> ../security-report.md
+            if [ "$VULN_COUNT" != "0" ]; then
+              jq -r '.vulnerabilities | to_entries[] | "- **\(.key)**: \(.value.severity) - \(.value.via[0].title // .value.via[0])"' npm-audit.json >> ../security-report.md 2>/dev/null || true
+            fi
+          fi
+      
+      - name: Check for Secrets in Code
+        run: |
+          echo "" >> security-report.md
+          echo "## Secret Detection" >> security-report.md
+          echo "" >> security-report.md
+          
+          # Check for common secret patterns
+          SECRET_PATTERNS="password|secret|api_key|apikey|token|auth"
+          FOUND_SECRETS=$(grep -r -i -E "($SECRET_PATTERNS)\s*=\s*['\"][^'\"]+['\"]" --include="*.py" --include="*.js" --include="*.ts" backend/ frontend/ 2>/dev/null || true)
+          
+          if [ -n "$FOUND_SECRETS" ]; then
+            echo "⚠️ Potential hardcoded secrets found:" >> security-report.md
+            echo '```' >> security-report.md
+            echo "$FOUND_SECRETS" | head -20 >> security-report.md
+            echo '```' >> security-report.md
+          else
+            echo "✅ No obvious hardcoded secrets detected" >> security-report.md
+          fi
+      
+      - name: Create Security Issue
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let reportContent = '## 🔒 Technical Guardian: Daily Security Scan Report\n\n';
+            reportContent += '**Scan Date:** ' + new Date().toISOString() + '\n\n';
+            
+            try {
+              const securityReport = fs.readFileSync('security-report.md', 'utf8');
+              reportContent += securityReport;
+            } catch (err) {
+              reportContent += 'Security report not generated.\n';
+            }
+            
+            reportContent += '\n\n### Recommended Actions\n\n';
+            reportContent += '1. Review all HIGH and CRITICAL vulnerabilities\n';
+            reportContent += '2. Update vulnerable dependencies: `npm update` (frontend) and `pip install -U` (backend)\n';
+            reportContent += '3. Fix any hardcoded secrets found\n';
+            reportContent += '4. Run security scans before merging PRs\n\n';
+            reportContent += '### References\n\n';
+            reportContent += '- [Technical Guardian Guidelines](.github/agents/technical-guardian.md)\n';
+            reportContent += '- [Security Best Practices](SECURITY.md)\n\n';
+            reportContent += '---\n';
+            reportContent += '*This report was automatically generated by Technical Guardian Security Scanner*';
+            
+            // Check for existing open security issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'technical-guardian,security-scan',
+              per_page: 1
+            });
+            
+            // Only create issue if vulnerabilities found
+            if (reportContent.includes('vulnerabilities') || reportContent.includes('⚠️')) {
+              if (issues.data.length === 0) {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: '🔒 Security Vulnerabilities Detected',
+                  body: reportContent,
+                  labels: ['technical-guardian', 'security-scan', 'security', 'automated']
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issues.data[0].number,
+                  body: '### Updated Scan Results\n\n' + reportContent
+                });
+              }
+            }
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '## 🔒 Technical Guardian: Security Scan Results\n\n';
+            
+            try {
+              const securityReport = fs.readFileSync('security-report.md', 'utf8');
+              comment += securityReport;
+            } catch (err) {
+              comment += '✅ No security issues detected.\n';
+            }
+            
+            comment += '\n\n---\n*Automated security scan by Technical Guardian*';
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });

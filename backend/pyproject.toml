@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secure-renewals-backend"
+version = "0.1.0"
+description = "Secure Renewals internal API"
+authors = [{name = "Secure Renewals", email = "security@example.com"}]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.1",
+    "SQLAlchemy>=2.0.34",
+    "asyncpg>=0.29.0",
+    "aiosqlite>=0.19.0",
+    "alembic>=1.13.2",
+    "pyjwt[crypto]>=2.10.1",
+    "python-jose[cryptography]>=3.3.0",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.9",
+    "passlib[bcrypt]>=1.7.4",
+    "slowapi>=0.1.9",
+    "email-validator>=2.0.0",
+    "openai>=1.12.0",
+    "msoffcrypto-tool>=5.0.0",
+    "openpyxl>=3.1.0",
+    "pandas>=2.0.0",
+]
+
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*"]
+
+[tool.uv]
+package = true

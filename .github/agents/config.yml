@@ -1,0 +1,476 @@
+# Agent Configuration
+# This file defines the configuration for GitHub Copilot agents in the Secure Renewals HR Portal
+
+agents:
+  - name: hr-assistant
+    file: .github/agents/hr-assistant.md
+    description: "Expert HR Assistant and Portal System Engineer"
+    capabilities:
+      - hr_operations
+      - portal_engineering
+      - issue_detection
+      - module_discovery
+    scope:
+      - backend/app/routers/
+      - backend/app/services/
+      - frontend/src/
+      - docs/
+    triggers:
+      - "onboarding"
+      - "probation"
+      - "hr workflow"
+      - "employee management"
+      - "contract renewal"
+      - "compliance"
+    
+  - name: code-quality-monitor
+    file: .github/agents/code-quality-monitor.md
+    description: "Proactive code quality and security scanner"
+    capabilities:
+      - security_scanning
+      - code_quality_analysis
+      - performance_monitoring
+      - database_health
+      - frontend_quality
+    scope:
+      - backend/
+      - frontend/
+      - alembic/
+    triggers:
+      - "security"
+      - "vulnerability"
+      - "performance"
+      - "code quality"
+      - "scan"
+      - "audit"
+    schedule:
+      - daily: ["security_scan", "dependency_check"]
+      - weekly: ["comprehensive_audit", "technical_debt_report"]
+      - monthly: ["trend_analysis"]
+    
+  - name: portal-engineer
+    file: .github/agents/portal-engineer.md
+    description: "Expert Portal System Engineer for technical implementation"
+    capabilities:
+      - feature_implementation
+      - architecture_design
+      - bug_fixing
+      - performance_optimization
+      - devops
+    scope:
+      - backend/app/
+      - frontend/src/
+      - alembic/
+      - .github/workflows/
+    triggers:
+      - "implement"
+      - "create endpoint"
+      - "database migration"
+      - "react component"
+      - "api design"
+      - "deployment"
+
+  - name: azure-deployment-specialist
+    file: .github/agents/azure-deployment-specialist.md
+    description: "Expert in Azure deployment, VS Code integration, and troubleshooting"
+    capabilities:
+      - azure_deployment
+      - vscode_deployment
+      - github_actions
+      - login_troubleshooting
+      - database_issues
+      - python_environment
+      - repository_knowledge
+    scope:
+      - .github/workflows/
+      - .vscode/
+      - deploy_to_azure.sh
+      - backend/app/main.py
+      - backend/app/database.py
+      - backend/app/core/
+      - docs/
+    triggers:
+      - "deploy"
+      - "azure"
+      - "vs code"
+      - "vscode"
+      - "login"
+      - "authentication"
+      - "database connection"
+      - "python error"
+      - "environment"
+      - "troubleshoot"
+      - "production"
+
+  - name: azure-debugger
+    file: .github/agents/azure-debugger.md
+    description: "Azure deployment debugger for pipelines and runtime failures"
+    capabilities:
+      - log_analysis
+      - pipeline_debugging
+      - appservice_troubleshooting
+      - cors_validation
+      - database_connectivity
+    scope:
+      - infra/
+      - .github/workflows/
+      - backend/
+      - frontend/
+      - docs/
+    triggers:
+      - "debug"
+      - "failure"
+      - "error"
+      - "kudu"
+      - "cors"
+      - "app service"
+      - "deployment issue"
+      - "connection"
+
+  - name: azure-deployment-engineer
+    file: .github/agents/azure-deployment-engineer.md
+    description: "End-to-end Azure deployment automation engineer"
+    capabilities:
+      - azure_deployment
+      - infra_as_code
+      - ci_cd_setup
+      - database_provisioning
+      - startup_configuration
+    scope:
+      - infra/
+      - .github/workflows/
+      - backend/
+      - frontend/
+      - scripts/
+    triggers:
+      - "deployment setup"
+      - "bicep"
+      - "workflow"
+      - "postgres"
+      - "app service"
+      - "publish"
+      - "azure automation"
+
+  - name: guardian-hr-uae
+    file: .github/agents/guardian-hr-uae.agent.md
+    description: "Autonomous HR Engineering, Process, Design & Compliance Partner for UAE private-sector HR ESS"
+    capabilities:
+      - hr_systems_engineering
+      - process_architecture
+      - compliance_validation
+      - uae_labour_law
+      - feature_planning
+      - github_research
+      - ui_design_constraints
+      - quality_scoring
+      - digital_pass_design
+      - microsoft_integration
+    scope:
+      - backend/app/
+      - frontend/src/
+      - docs/
+      - .github/
+    triggers:
+      - "hr module"
+      - "uae compliance"
+      - "labour law"
+      - "attendance"
+      - "leave management"
+      - "overtime"
+      - "wps"
+      - "employee request"
+      - "digital pass"
+      - "hr workflow"
+      - "onboarding"
+      - "compliance alert"
+      - "visa tracking"
+      - "emirates id"
+    operating_modes:
+      - advisor: "default - diagnose and recommend"
+      - builder: "activated on explicit instruction"
+    decision_authority:
+      auto_approve:
+        - ux_flows
+        - additive_data_model
+        - technical_implementation
+      require_approval:
+        - breaking_data_model
+        - hr_policy_interpretation
+    quality_gates:
+      required_score: 4
+      dimensions:
+        - simplicity
+        - process_clarity
+        - hr_control
+        - audit_defensibility
+        - aesthetic_calm
+        - microsoft_alignment
+
+  - name: oss-scout
+    file: .github/agents/oss-scout.agent.md
+    description: "Research-first Copilot agent for Baynunah HR ESS"
+    capabilities:
+      - github_research
+      - repo_evaluation
+      - license_analysis
+      - adaptation_planning
+      - uae_compliance_awareness
+    scope:
+      - backend/app/
+      - frontend/src/
+      - docs/
+    triggers:
+      - "find module"
+      - "search github"
+      - "compare options"
+      - "open source"
+      - "evaluate repo"
+
+  - name: hr-portal-finalizer
+    file: .github/agents/hr-portal-finalizer.agent.md
+    description: "Autonomous MVP finisher for AZURE-DEPLOYMENT-HR-PORTAL. Owns completion of the HR portal for a non-technical solo HR user."
+    capabilities:
+      - mvp_execution
+      - autonomous_implementation
+      - employee_management
+      - pass_generation
+      - ess_workflows
+      - compliance_tracking
+      - blueprint_interpretation
+      - pragmatic_decision_making
+      - user_empathy
+    scope:
+      - backend/app/
+      - frontend/src/
+      - docs/
+      - .github/
+      - alembic/
+    triggers:
+      - "begin"
+      - "finish"
+      - "mvp"
+      - "employees"
+      - "passes"
+      - "ess"
+      - "status"
+      - "audit"
+      - "finalize"
+      - "complete portal"
+      - "urgent"
+    operating_modes:
+      - autonomous: "default - execute without waiting for instructions"
+      - guided: "activated when blocking issues arise"
+    decision_authority:
+      auto_approve:
+        - bug_fixes
+        - code_cleanup
+        - additive_fields
+        - new_endpoints
+        - new_components
+        - ui_improvements
+      require_approval:
+        - breaking_schema_changes
+        - delete_functionality
+        - security_sensitive_changes
+    priorities:
+      - employees_solid
+      - passes_visible
+      - ess_flows
+      - dashboard
+      - uae_compliance
+      - deployment_health
+      - nice_to_haves
+
+# Collaboration rules
+collaboration:
+  planning_phase:
+    primary: guardian-hr-uae
+    secondary: [hr-assistant, portal-engineer, oss-scout, hr-portal-finalizer]
+    
+  research_phase:
+    primary: oss-scout
+    secondary: [guardian-hr-uae]
+    
+  implementation_phase:
+    primary: portal-engineer
+    secondary: [code-quality-monitor, guardian-hr-uae, hr-portal-finalizer]
+    
+  quality_assurance_phase:
+    primary: code-quality-monitor
+    secondary: [portal-engineer, guardian-hr-uae]
+    
+  deployment_phase:
+    primary: azure-deployment-specialist
+    secondary: [portal-engineer, code-quality-monitor]
+    
+  production_maintenance:
+    primary: code-quality-monitor
+    secondary: [hr-assistant, portal-engineer, azure-deployment-specialist, guardian-hr-uae]
+    
+  compliance_review:
+    primary: guardian-hr-uae
+    secondary: [hr-assistant, code-quality-monitor]
+
+  mvp_completion:
+    primary: hr-portal-finalizer
+    secondary: [portal-engineer, guardian-hr-uae, code-quality-monitor]
+
+# Agent priorities
+priorities:
+  critical_security_issue:
+    handler: code-quality-monitor
+    escalate_to: portal-engineer
+    notify: [hr-assistant, guardian-hr-uae]
+    
+  new_hr_feature:
+    handler: guardian-hr-uae
+    research_by: oss-scout
+    implement_by: portal-engineer
+    verify_by: code-quality-monitor
+    deploy_by: azure-deployment-specialist
+    
+  performance_issue:
+    handler: code-quality-monitor
+    fix_by: portal-engineer
+    
+  bug_report:
+    handler: portal-engineer
+    verify_by: code-quality-monitor
+    
+  deployment_issue:
+    handler: azure-deployment-specialist
+    escalate_to: portal-engineer
+    
+  login_issue:
+    handler: azure-deployment-specialist
+    verify_by: code-quality-monitor
+    
+  database_issue:
+    handler: azure-deployment-specialist
+    fix_by: portal-engineer
+
+  uae_compliance_issue:
+    handler: guardian-hr-uae
+    verify_by: code-quality-monitor
+    notify: hr-assistant
+
+  hr_workflow_design:
+    handler: guardian-hr-uae
+    research_by: oss-scout
+    implement_by: portal-engineer
+
+  digital_pass_request:
+    handler: guardian-hr-uae
+    implement_by: portal-engineer
+    verify_by: code-quality-monitor
+
+  mvp_completion_request:
+    handler: hr-portal-finalizer
+    implement_by: portal-engineer
+    verify_by: code-quality-monitor
+    deploy_by: azure-deployment-specialist
+
+  urgent_portal_finish:
+    handler: hr-portal-finalizer
+    secondary: [portal-engineer, guardian-hr-uae]
+    verify_by: code-quality-monitor
+
+# Quality gates
+quality_gates:
+  before_merge:
+    - check: security_scan
+      agent: code-quality-monitor
+      blocking: true
+      
+    - check: code_quality
+      agent: code-quality-monitor
+      blocking: false
+      
+    - check: pattern_compliance
+      agent: portal-engineer
+      blocking: true
+      
+  before_deployment:
+    - check: comprehensive_security
+      agent: code-quality-monitor
+      blocking: true
+      
+    - check: performance_baseline
+      agent: code-quality-monitor
+      blocking: false
+      
+    - check: hr_workflow_validation
+      agent: hr-assistant
+      blocking: false
+      
+    - check: deployment_readiness
+      agent: azure-deployment-specialist
+      blocking: true
+      
+  after_deployment:
+    - check: health_endpoint_verification
+      agent: azure-deployment-specialist
+      blocking: true
+      
+    - check: database_connectivity
+      agent: azure-deployment-specialist
+      blocking: true
+      
+    - check: login_functionality
+      agent: azure-deployment-specialist
+      blocking: true
+
+# Metrics tracking
+metrics:
+  effectiveness:
+    - time_saved_hours
+    - bugs_prevented
+    - features_implemented
+    - security_issues_found
+    
+  code_health:
+    - security_score
+    - quality_score
+    - performance_score
+    - technical_debt_hours
+    
+  hr_operations:
+    - automation_percentage
+    - manual_tasks_eliminated
+    - workflow_efficiency
+    - user_satisfaction
+    
+  deployment_health:
+    - deployment_success_rate
+    - deployment_time_minutes
+    - rollback_frequency
+    - uptime_percentage
+    - health_check_pass_rate
+
+# Integration points
+integrations:
+  github_actions:
+    enabled: true
+    workflows:
+      - ci.yml
+      - deploy.yml
+      - security-scan.yml
+      
+  azure_deployment:
+    enabled: true
+    app_name: baynunahhrportal
+    resource_group: BaynunahHR
+    
+  github_issues:
+    enabled: true
+    auto_create: true
+    labels:
+      - agent-detected
+      - needs-review
+      - deployment-issue
+      
+  notifications:
+    enabled: true
+    channels:
+      - github_issues
+      - pull_request_comments

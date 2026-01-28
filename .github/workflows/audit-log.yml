@@ -1,0 +1,21 @@
+name: Audit Log
+on:
+  push:
+    branches: [main]
+jobs:
+  log-changes:
+    name: Log Code Changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log commit details
+        run: |
+          echo "Commit: ${{ github.sha }}" >> audit.log
+          echo "Author: ${{ github.actor }}" >> audit.log
+          echo "Date: $(date)" >> audit.log
+          echo "Message: ${{ github.event.head_commit.message }}" >> audit.log
+      - name: Upload audit log
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-log
+          path: audit.log

@@ -1,0 +1,59 @@
+name: Deploy Backend (FastAPI) to Azure App Service via OIDC
+
+on:
+  # Disabled - using deploy.yml instead
+  # push:
+  #   branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        # OIDC removes publish profiles; Microsoft recommends this approach.
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "uv.lock" ]; then
+            echo "Installing backend deps via uv.lock"
+            pip install uv
+            uv sync
+          elif [ -f "requirements.txt" ]; then
+            echo "Installing backend deps via requirements.txt"
+            pip install -r requirements.txt
+          else
+            echo "No dependency manifest found (expected uv.lock or requirements.txt)"
+            exit 1
+          fi
+
+      # - name: Run tests
+      #   working-directory: backend
+      #   run: pytest -q
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: hrportal-backend-new
+          package: ./backend

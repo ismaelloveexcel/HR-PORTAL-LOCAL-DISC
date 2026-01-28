@@ -1,0 +1,1 @@
+export { NominationPass } from './NominationPass'

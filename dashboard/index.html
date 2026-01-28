@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Repository Dashboard - AZURE-DEPLOYMENT-HR-PORTAL</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>🏢 Repository Dashboard</h1>
+      <p class="subtitle">AZURE-DEPLOYMENT-HR-PORTAL - Monitor & Control Center</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="alert alert-info">
+      <strong>💡 Quick Start:</strong> This dashboard helps you monitor workflows, check deployment status, and access important GitHub features all in one place.
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- Quick Actions -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">⚡ Quick Actions</h2>
+        </div>
+        <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions" class="quick-link" target="_blank">
+          View All Workflows
+        </a>
+        <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/pulls" class="quick-link" target="_blank">
+          Pull Requests
+        </a>
+        <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/issues" class="quick-link" target="_blank">
+          Issues
+        </a>
+        <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/settings" class="quick-link" target="_blank">
+          Repository Settings
+        </a>
+      </div>
+
+      <!-- Workflow Status -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔄 Key Workflows</h2>
+          <span class="badge badge-info">26 Total</span>
+        </div>
+        <ul class="workflow-list">
+          <li class="workflow-item">
+            <div>
+              <div class="workflow-name">
+                <span class="status-dot status-success"></span>
+                Deploy to Azure
+              </div>
+              <div class="workflow-desc">Main deployment workflow</div>
+            </div>
+            <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions/workflows/deploy.yml" target="_blank" class="btn btn-primary btn-sm">View</a>
+          </li>
+          <li class="workflow-item">
+            <div>
+              <div class="workflow-name">
+                <span class="status-dot status-success"></span>
+                CI (Lint & Build)
+              </div>
+              <div class="workflow-desc">Code quality checks</div>
+            </div>
+            <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions/workflows/ci.yml" target="_blank" class="btn btn-primary btn-sm">View</a>
+          </li>
+          <li class="workflow-item">
+            <div>
+              <div class="workflow-name">
+                <span class="status-dot status-success"></span>
+                PR Quality Check
+              </div>
+              <div class="workflow-desc">Automated PR validation</div>
+            </div>
+            <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions/workflows/pr-quality-check.yml" target="_blank" class="btn btn-primary btn-sm">View</a>
+          </li>
+          <li class="workflow-item">
+            <div>
+              <div class="workflow-name">
+                <span class="status-dot status-warning"></span>
+                Post-Deployment Health
+              </div>
+              <div class="workflow-desc">Health checks after deploy</div>
+            </div>
+            <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions/workflows/post-deployment-health.yml" target="_blank" class="btn btn-primary btn-sm">View</a>
+          </li>
+        </ul>
+        <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions" target="_blank" class="view-all-link">View All Workflows →</a>
+      </div>
+
+      <!-- Repository Stats -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">📊 Repository Stats</h2>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-box">
+            <div class="stat-value">26</div>
+            <div class="stat-label">Workflows</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">110+</div>
+            <div class="stat-label">Backend Files</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">46+</div>
+            <div class="stat-label">Frontend Files</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">Azure</div>
+            <div class="stat-label">Deployment</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Useful GitHub Features -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">✨ Useful GitHub Features</h2>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Actions Tab</div>
+          <div class="feature-desc">See all workflow runs, filter by status, re-run failed jobs</div>
+          <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/actions" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Open Actions</a>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Insights → Pulse</div>
+          <div class="feature-desc">Overview of repository activity (PRs, issues, commits)</div>
+          <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/pulse" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">View Pulse</a>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Insights → Network</div>
+          <div class="feature-desc">Visualize branches, commits, and merge history</div>
+          <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/network" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">View Network</a>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Security Tab</div>
+          <div class="feature-desc">Dependabot alerts, code scanning, secrets scanning</div>
+          <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL/security" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Open Security</a>
+        </div>
+      </div>
+
+      <!-- Common Issues & Solutions -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔧 Common Issues</h2>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Workflow Failed?</div>
+          <div class="feature-desc">
+            1. Go to Actions tab<br>
+            2. Click the failed workflow<br>
+            3. Click the failed job<br>
+            4. Read the error logs<br>
+            5. Click "Re-run failed jobs" after fixing
+          </div>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Deployment Error?</div>
+          <div class="feature-desc">
+            Check post-deployment-health workflow for detailed health checks and error messages
+          </div>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Build Error?</div>
+          <div class="feature-desc">
+            Check CI workflow for linting and build errors. Look for red X marks in PR checks
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications & Monitoring -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">🔔 Stay Updated</h2>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Watch Repository</div>
+          <div class="feature-desc">Get notifications for all conversations, releases, and security alerts</div>
+          <a href="https://github.com/ismaelloveexcel/AZURE-DEPLOYMENT-HR-PORTAL" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Configure</a>
+        </div>
+        <div class="feature-box">
+          <div class="feature-title">Email Notifications</div>
+          <div class="feature-desc">Configure which events trigger email notifications in your GitHub settings</div>
+          <a href="https://github.com/settings/notifications" target="_blank" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Settings</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <strong>💡 Pro Tip:</strong> Bookmark this page for quick access to your repository controls. You can also pin important workflow actions to your browser bookmarks.
+    </div>
+  </div>
+</body>
+</html>

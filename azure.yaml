@@ -1,0 +1,17 @@
+name: hr-portal-azd
+infra:
+  provider: bicep
+  path: infra
+services:
+  backend:
+    project: ./backend
+    language: python
+    host: appservice
+    hooks:
+      postdeploy:
+        shell: sh
+        run: cd backend && alembic upgrade head
+  frontend:
+    project: ./frontend
+    language: javascript
+    host: staticwebapp

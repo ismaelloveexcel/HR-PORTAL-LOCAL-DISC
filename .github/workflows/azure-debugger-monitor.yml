@@ -1,0 +1,275 @@
+name: Azure Debugger - Deployment Failure Monitor
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Azure", "CI"]
+    types: [completed]
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  analyze-failure:
+    name: Analyze Deployment Failures
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get Failed Workflow Details
+        id: workflow_info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let workflowRun;
+            
+            if (context.eventName === 'workflow_dispatch') {
+              // Get the most recent failed workflow run
+              const workflows = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                status: 'failure',
+                per_page: 5
+              });
+              
+              if (workflows.data.workflow_runs.length > 0) {
+                workflowRun = workflows.data.workflow_runs[0];
+              } else {
+                core.setOutput('has_failure', 'false');
+                return;
+              }
+            } else {
+              workflowRun = context.payload.workflow_run;
+            }
+            
+            core.setOutput('has_failure', 'true');
+            core.setOutput('run_id', workflowRun.id);
+            core.setOutput('workflow_name', workflowRun.name);
+            core.setOutput('run_url', workflowRun.html_url);
+            core.setOutput('head_sha', workflowRun.head_sha);
+            core.setOutput('head_branch', workflowRun.head_branch);
+      
+      - name: Get Failed Job Logs
+        id: get_logs
+        if: steps.workflow_info.outputs.has_failure == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = '${{ steps.workflow_info.outputs.run_id }}';
+            
+            // Get jobs for this run
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId
+            });
+            
+            let failedJobs = jobs.data.jobs.filter(job => job.conclusion === 'failure');
+            let analysisReport = '';
+            
+            for (const job of failedJobs) {
+              analysisReport += `### Failed Job: ${job.name}\n`;
+              analysisReport += `- **Status:** ${job.status}\n`;
+              analysisReport += `- **Conclusion:** ${job.conclusion}\n`;
+              analysisReport += `- **Started:** ${job.started_at}\n`;
+              analysisReport += `- **Completed:** ${job.completed_at}\n\n`;
+              
+              // Get failed steps
+              const failedSteps = job.steps.filter(step => step.conclusion === 'failure');
+              if (failedSteps.length > 0) {
+                analysisReport += `**Failed Steps:**\n`;
+                for (const step of failedSteps) {
+                  analysisReport += `- ❌ ${step.name} (${step.conclusion})\n`;
+                }
+                analysisReport += '\n';
+              }
+            }
+            
+            core.setOutput('analysis', analysisReport);
+            core.setOutput('failed_count', failedJobs.length);
+      
+      - name: Analyze Error Patterns
+        id: error_analysis
+        if: steps.workflow_info.outputs.has_failure == 'true'
+        run: |
+          echo "## Error Pattern Analysis" > error-analysis.md
+          echo "" >> error-analysis.md
+          
+          # Common Azure deployment error patterns
+          declare -A error_patterns
+          error_patterns["OIDC"]="Azure OIDC authentication issue - Check federated credentials and permissions"
+          error_patterns["AZURE_CREDENTIALS"]="Missing or invalid Azure credentials - Verify secrets are configured"
+          error_patterns["connection refused"]="Database connection failed - Check firewall rules and connection string"
+          error_patterns["CORS"]="CORS configuration error - Update ALLOWED_ORIGINS environment variable"
+          error_patterns["ModuleNotFoundError"]="Python module missing - Check requirements.txt"
+          error_patterns["npm ERR"]="NPM build failure - Check package.json and node version"
+          error_patterns["alembic"]="Database migration issue - Check migration files"
+          error_patterns["502 Bad Gateway"]="App Service startup failure - Check startup command and logs"
+          error_patterns["timeout"]="Operation timeout - Check Azure resource quotas"
+          error_patterns["permission denied"]="Permission error - Check RBAC assignments"
+          
+          echo "### Common Error Patterns to Check" >> error-analysis.md
+          echo "" >> error-analysis.md
+          
+          for pattern in "${!error_patterns[@]}"; do
+            echo "- **$pattern**: ${error_patterns[$pattern]}" >> error-analysis.md
+          done
+          
+          echo "" >> error-analysis.md
+          echo "### Recommended Actions" >> error-analysis.md
+          echo "" >> error-analysis.md
+          echo "1. Review the failed workflow logs above" >> error-analysis.md
+          echo "2. Check Azure App Service logs: \`az webapp log tail --name <app-name> --resource-group <rg>\`" >> error-analysis.md
+          echo "3. Verify GitHub secrets are configured correctly" >> error-analysis.md
+          echo "4. Check environment variables in App Service configuration" >> error-analysis.md
+          echo "5. Review recent code changes that may have caused the failure" >> error-analysis.md
+          
+          cat error-analysis.md
+      
+      - name: Check Infrastructure Files
+        id: infra_check
+        if: steps.workflow_info.outputs.has_failure == 'true'
+        run: |
+          echo "## Infrastructure Validation" > infra-check.md
+          echo "" >> infra-check.md
+          
+          # Check if Bicep files exist and are valid
+          if [ -d "infra" ]; then
+            echo "### Bicep Templates" >> infra-check.md
+            echo "" >> infra-check.md
+            for file in infra/*.bicep; do
+              if [ -f "$file" ]; then
+                echo "✅ Found: $file" >> infra-check.md
+              fi
+            done
+          else
+            echo "⚠️ No infra/ directory found" >> infra-check.md
+          fi
+          
+          echo "" >> infra-check.md
+          
+          # Check workflow files
+          echo "### Workflow Files" >> infra-check.md
+          echo "" >> infra-check.md
+          for file in .github/workflows/*.yml; do
+            if [ -f "$file" ]; then
+              echo "✅ Found: $file" >> infra-check.md
+            fi
+          done
+          
+          echo "" >> infra-check.md
+          
+          # Check for required files
+          echo "### Required Files" >> infra-check.md
+          echo "" >> infra-check.md
+          
+          FILES_TO_CHECK="backend/requirements.txt backend/app/main.py frontend/package.json"
+          for file in $FILES_TO_CHECK; do
+            if [ -f "$file" ]; then
+              echo "✅ $file exists" >> infra-check.md
+            else
+              echo "❌ $file MISSING" >> infra-check.md
+            fi
+          done
+          
+          cat infra-check.md
+      
+      - name: Create Diagnostic Issue
+        if: steps.workflow_info.outputs.has_failure == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            const workflowName = '${{ steps.workflow_info.outputs.workflow_name }}';
+            const runUrl = '${{ steps.workflow_info.outputs.run_url }}';
+            const branch = '${{ steps.workflow_info.outputs.head_branch }}';
+            const sha = '${{ steps.workflow_info.outputs.head_sha }}';
+            const failedCount = '${{ steps.get_logs.outputs.failed_count }}';
+            const jobAnalysis = `${{ steps.get_logs.outputs.analysis }}`;
+            
+            let body = '## 🔧 Azure Debugger: Deployment Failure Analysis\n\n';
+            body += '**Timestamp:** ' + new Date().toISOString() + '\n\n';
+            body += '### Failure Details\n\n';
+            body += `- **Workflow:** ${workflowName}\n`;
+            body += `- **Branch:** ${branch}\n`;
+            body += `- **Commit:** ${sha.substring(0, 7)}\n`;
+            body += `- **Failed Jobs:** ${failedCount}\n`;
+            body += `- **Workflow Run:** [View Logs](${runUrl})\n\n`;
+            
+            body += '### Job Analysis\n\n';
+            body += jobAnalysis + '\n';
+            
+            // Read error analysis
+            try {
+              const errorAnalysis = fs.readFileSync('error-analysis.md', 'utf8');
+              body += errorAnalysis + '\n';
+            } catch (err) {
+              body += '### Error Analysis\n\nUnable to generate error analysis.\n\n';
+            }
+            
+            // Read infra check
+            try {
+              const infraCheck = fs.readFileSync('infra-check.md', 'utf8');
+              body += infraCheck + '\n';
+            } catch (err) {
+              body += '### Infrastructure Check\n\nUnable to generate infrastructure check.\n\n';
+            }
+            
+            body += '### Quick Fix Commands\n\n';
+            body += '```bash\n';
+            body += '# Check Azure CLI login\n';
+            body += 'az login\n\n';
+            body += '# View App Service logs\n';
+            body += 'az webapp log tail --name <app-name> --resource-group <rg>\n\n';
+            body += '# Restart App Service\n';
+            body += 'az webapp restart --name <app-name> --resource-group <rg>\n\n';
+            body += '# Check health endpoint\n';
+            body += 'curl https://<app-name>.azurewebsites.net/api/health/ping\n';
+            body += '```\n\n';
+            
+            body += '### References\n\n';
+            body += '- [Azure Debugger Agent Guidelines](.github/agents/azure-debugger.md)\n';
+            body += '- [Deployment Troubleshooting](docs/BACKEND_TROUBLESHOOTING.md)\n';
+            body += '- [Azure Deployment Guide](docs/AZURE_DEPLOYMENT_REFERENCE_GUIDE.md)\n\n';
+            body += '---\n';
+            body += '*This issue was automatically created by Azure Debugger Monitor*';
+            
+            // Check for existing open issue
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'azure-debugger,deployment-failure',
+              per_page: 1
+            });
+            
+            if (issues.data.length === 0) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🔧 Deployment Failure: ${workflowName}`,
+                body: body,
+                labels: ['azure-debugger', 'deployment-failure', 'automated']
+              });
+            } else {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: '### New Failure Detected\n\n' + body
+              });
+            }
+      
+      - name: Report Success (No Failures)
+        if: steps.workflow_info.outputs.has_failure != 'true'
+        run: |
+          echo "✅ Azure Debugger: No recent deployment failures detected"

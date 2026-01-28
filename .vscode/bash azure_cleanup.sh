@@ -1,0 +1,1 @@
+bash azure_cleanup.sh

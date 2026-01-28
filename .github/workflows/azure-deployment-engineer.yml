@@ -1,0 +1,372 @@
+name: Azure Deployment Engineer - Infrastructure Validator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/deploy*.yml'
+      - 'backend/requirements.txt'
+      - 'backend/pyproject.toml'
+      - 'frontend/package.json'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - '.github/workflows/deploy*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  validate-infrastructure:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Initialize Report
+        run: |
+          echo "## 🏗️ Azure Deployment Engineer: Infrastructure Validation" > infra-report.md
+          echo "" >> infra-report.md
+          echo "**Validation Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> infra-report.md
+          echo "" >> infra-report.md
+      
+      # ===== BICEP VALIDATION =====
+      
+      - name: Setup Azure CLI
+        continue-on-error: true
+        run: |
+          # Azure CLI is pre-installed on GitHub runners
+          # Just verify it's available
+          if command -v az &> /dev/null; then
+            echo "Azure CLI version: $(az --version | head -1)"
+            echo "AZURE_CLI_AVAILABLE=true" >> $GITHUB_ENV
+          else
+            echo "Azure CLI not available - Bicep validation will use basic checks only"
+            echo "AZURE_CLI_AVAILABLE=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Validate Bicep Templates
+        id: bicep_validate
+        continue-on-error: true
+        run: |
+          echo "### Bicep Template Validation" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          if [ -d "infra" ]; then
+            BICEP_FILES=$(find infra -name "*.bicep" 2>/dev/null)
+            
+            if [ -n "$BICEP_FILES" ]; then
+              echo "**Found Bicep files:**" >> infra-report.md
+              echo "" >> infra-report.md
+              
+              for file in $BICEP_FILES; do
+                echo "- \`$file\`" >> infra-report.md
+                
+                # Check for common issues
+                if grep -q "location.*=.*'eastus'" "$file"; then
+                  echo "  ⚠️ Hardcoded location 'eastus' - consider using parameter" >> infra-report.md
+                fi
+                
+                if grep -q "TODO\|FIXME" "$file"; then
+                  echo "  ⚠️ Contains TODO/FIXME comments" >> infra-report.md
+                fi
+              done
+              
+              echo "" >> infra-report.md
+              echo "✅ Bicep files found and analyzed" >> infra-report.md
+            else
+              echo "⚠️ No Bicep files found in infra/ directory" >> infra-report.md
+            fi
+          else
+            echo "⚠️ No infra/ directory found" >> infra-report.md
+          fi
+          echo "" >> infra-report.md
+      
+      # ===== WORKFLOW VALIDATION =====
+      
+      - name: Validate GitHub Actions Workflows
+        id: workflow_validate
+        run: |
+          echo "### GitHub Actions Workflow Validation" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          WORKFLOW_FILES=$(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null)
+          
+          if [ -n "$WORKFLOW_FILES" ]; then
+            echo "**Workflow Files:**" >> infra-report.md
+            echo "" >> infra-report.md
+            echo "| Workflow | Triggers | Status |" >> infra-report.md
+            echo "|----------|----------|--------|" >> infra-report.md
+            
+            for file in $WORKFLOW_FILES; do
+              filename=$(basename "$file")
+              
+              # Extract triggers
+              triggers=$(grep -A5 "^on:" "$file" | grep -E "^\s+(push|pull_request|schedule|workflow_dispatch|workflow_run)" | tr '\n' ', ' | sed 's/, $//' || echo "unknown")
+              
+              # Basic YAML validation
+              if python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
+                status="✅ Valid"
+              else
+                status="❌ Invalid YAML"
+              fi
+              
+              echo "| $filename | $triggers | $status |" >> infra-report.md
+            done
+            
+            echo "" >> infra-report.md
+          else
+            echo "⚠️ No workflow files found" >> infra-report.md
+          fi
+          echo "" >> infra-report.md
+      
+      # ===== DEPLOYMENT CONFIGURATION =====
+      
+      - name: Check Deployment Configuration
+        id: deploy_config
+        run: |
+          echo "### Deployment Configuration Check" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          echo "**Required Files:**" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          # Backend requirements
+          if [ -f "backend/requirements.txt" ]; then
+            DEPS=$(wc -l < backend/requirements.txt)
+            echo "- ✅ \`backend/requirements.txt\` ($DEPS dependencies)" >> infra-report.md
+          else
+            echo "- ❌ \`backend/requirements.txt\` - MISSING" >> infra-report.md
+          fi
+          
+          # Check for pyproject.toml
+          if [ -f "backend/pyproject.toml" ]; then
+            echo "- ✅ \`backend/pyproject.toml\`" >> infra-report.md
+          fi
+          
+          # Frontend package.json
+          if [ -f "frontend/package.json" ]; then
+            VERSION=$(jq -r '.version // "unknown"' frontend/package.json)
+            echo "- ✅ \`frontend/package.json\` (version: $VERSION)" >> infra-report.md
+          else
+            echo "- ❌ \`frontend/package.json\` - MISSING" >> infra-report.md
+          fi
+          
+          # Startup scripts
+          if [ -f "backend/azure_startup.sh" ]; then
+            echo "- ✅ \`backend/azure_startup.sh\`" >> infra-report.md
+          fi
+          
+          if [ -f "backend/Procfile" ]; then
+            echo "- ✅ \`backend/Procfile\`" >> infra-report.md
+          fi
+          
+          # Environment templates
+          if [ -f "backend/.env.example" ]; then
+            echo "- ✅ \`backend/.env.example\`" >> infra-report.md
+          fi
+          
+          echo "" >> infra-report.md
+      
+      # ===== ENVIRONMENT VARIABLES =====
+      
+      - name: Check Required Environment Variables
+        id: env_check
+        run: |
+          echo "### Environment Variables Check" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          REQUIRED_VARS="DATABASE_URL AUTH_SECRET_KEY ALLOWED_ORIGINS"
+          
+          echo "**Required Environment Variables:**" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          for var in $REQUIRED_VARS; do
+            # Check if mentioned in .env.example
+            if [ -f "backend/.env.example" ] && grep -q "$var" "backend/.env.example"; then
+              echo "- ✅ \`$var\` documented in .env.example" >> infra-report.md
+            else
+              echo "- ⚠️ \`$var\` not documented in .env.example" >> infra-report.md
+            fi
+          done
+          
+          echo "" >> infra-report.md
+          
+          # Check workflows for secret usage
+          echo "**Secrets Used in Workflows:**" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          SECRETS_FOUND=$(grep -rh "secrets\." .github/workflows/*.yml 2>/dev/null | grep -oE "secrets\.[A-Z_]+" | sort -u || true)
+          
+          if [ -n "$SECRETS_FOUND" ]; then
+            for secret in $SECRETS_FOUND; do
+              echo "- \`$secret\`" >> infra-report.md
+            done
+          else
+            echo "- No secrets references found" >> infra-report.md
+          fi
+          
+          echo "" >> infra-report.md
+      
+      # ===== DEPLOYMENT READINESS =====
+      
+      - name: Assess Deployment Readiness
+        id: readiness
+        run: |
+          echo "### Deployment Readiness Assessment" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          SCORE=0
+          MAX_SCORE=10
+          
+          # Check criteria
+          [ -f "backend/requirements.txt" ] && SCORE=$((SCORE + 2))
+          [ -f "frontend/package.json" ] && SCORE=$((SCORE + 2))
+          # Check for any workflow that could represent a deployment pipeline
+          if ls .github/workflows/*.yml 1>/dev/null 2>&1; then
+            SCORE=$((SCORE + 2))
+          fi
+          [ -f "backend/.env.example" ] && SCORE=$((SCORE + 1))
+          [ -d "infra" ] && SCORE=$((SCORE + 1))
+          [ -f "backend/app/main.py" ] && SCORE=$((SCORE + 1))
+          [ -f "staticwebapp.config.json" ] && SCORE=$((SCORE + 1))
+          
+          PERCENTAGE=$((SCORE * 100 / MAX_SCORE))
+          
+          echo "**Readiness Score:** $SCORE / $MAX_SCORE ($PERCENTAGE%)" >> infra-report.md
+          echo "" >> infra-report.md
+          
+          if [ $PERCENTAGE -ge 80 ]; then
+            echo "✅ **Ready for deployment**" >> infra-report.md
+          elif [ $PERCENTAGE -ge 60 ]; then
+            echo "⚠️ **Partially ready** - Some configuration missing" >> infra-report.md
+          else
+            echo "❌ **Not ready** - Critical configuration missing" >> infra-report.md
+          fi
+          
+          echo "" >> infra-report.md
+          echo "readiness_score=$PERCENTAGE" >> $GITHUB_OUTPUT
+      
+      # ===== RECOMMENDATIONS =====
+      
+      - name: Generate Recommendations
+        run: |
+          echo "### Recommendations" >> infra-report.md
+          echo "" >> infra-report.md
+          echo "Based on [Azure Deployment Engineer](.github/agents/azure-deployment-engineer.md) guidelines:" >> infra-report.md
+          echo "" >> infra-report.md
+          echo "1. **Ensure all required secrets are configured** in GitHub repository settings" >> infra-report.md
+          echo "2. **Use OIDC authentication** instead of service principal secrets" >> infra-report.md
+          echo "3. **Enable Application Insights** for monitoring and diagnostics" >> infra-report.md
+          echo "4. **Configure health endpoints** for deployment verification" >> infra-report.md
+          echo "5. **Use staging slots** for zero-downtime deployments" >> infra-report.md
+          echo "" >> infra-report.md
+          echo "### Quick Start Commands" >> infra-report.md
+          echo "" >> infra-report.md
+          echo '```bash' >> infra-report.md
+          echo '# Deploy infrastructure' >> infra-report.md
+          echo 'az deployment sub create --location eastus --template-file infra/main.bicep' >> infra-report.md
+          echo '' >> infra-report.md
+          echo '# Deploy backend' >> infra-report.md
+          echo 'az webapp deployment source config-zip --name <app-name> --resource-group <rg> --src backend.zip' >> infra-report.md
+          echo '' >> infra-report.md
+          echo '# Check deployment status' >> infra-report.md
+          echo 'az webapp show --name <app-name> --resource-group <rg> --query "state"' >> infra-report.md
+          echo '```' >> infra-report.md
+          echo "" >> infra-report.md
+          echo "---" >> infra-report.md
+          echo "*Automated infrastructure validation by Azure Deployment Engineer*" >> infra-report.md
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let comment = '';
+            
+            try {
+              comment = fs.readFileSync('infra-report.md', 'utf8');
+            } catch (err) {
+              comment = '## 🏗️ Azure Deployment Engineer\n\n✅ Infrastructure validation completed. See workflow logs for details.';
+            }
+            
+            // Check if we already commented
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const existingComment = comments.data.find(c => 
+              c.user.login === 'github-actions[bot]' && 
+              c.body.includes('Azure Deployment Engineer')
+            );
+            
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+      
+      - name: Create Infrastructure Issue (if issues found)
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const readinessScore = parseInt('${{ steps.readiness.outputs.readiness_score }}' || '100');
+            
+            // Only create issue if readiness is below threshold
+            if (readinessScore < 70) {
+              let report = '';
+              try {
+                report = fs.readFileSync('infra-report.md', 'utf8');
+              } catch (err) {
+                report = 'Infrastructure validation report unavailable.';
+              }
+              
+              // Check for existing issue
+              const issues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: 'azure-deployment-engineer,infrastructure',
+                per_page: 1
+              });
+              
+              if (issues.data.length === 0) {
+                await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: '🏗️ Infrastructure Configuration Needs Attention',
+                  body: report,
+                  labels: ['azure-deployment-engineer', 'infrastructure', 'automated']
+                });
+              }
+            }
+      
+      - name: Upload Infrastructure Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infrastructure-report
+          path: infra-report.md
+          retention-days: 30

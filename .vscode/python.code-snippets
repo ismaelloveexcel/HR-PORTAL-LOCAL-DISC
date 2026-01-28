@@ -1,0 +1,126 @@
+{
+  "FastAPI Endpoint": {
+    "prefix": "fastapi-endpoint",
+    "body": [
+      "@router.${1|get,post,put,delete,patch|}(\"/${2:path}\")",
+      "async def ${3:function_name}(",
+      "    ${4:param}: ${5:type},",
+      "    db: AsyncSession = Depends(get_db),",
+      "    current_user: User = Depends(get_current_user)",
+      ") -> ${6:ResponseType}:",
+      "    \"\"\"${7:Endpoint description}\"\"\"",
+      "    $0",
+      "    return result"
+    ],
+    "description": "Create a FastAPI endpoint"
+  },
+  "Alembic Migration": {
+    "prefix": "alembic-migration",
+    "body": [
+      "\"\"\"${1:migration description}",
+      "",
+      "Revision ID: ${2:revision_id}",
+      "Revises: ${3:previous_revision}",
+      "Create Date: ${4:CURRENT_DATE}",
+      "\"\"\"",
+      "from alembic import op",
+      "import sqlalchemy as sa",
+      "",
+      "# revision identifiers, used by Alembic.",
+      "revision = '${2:revision_id}'",
+      "down_revision = '${3:previous_revision}'",
+      "branch_labels = None",
+      "depends_on = None",
+      "",
+      "def upgrade() -> None:",
+      "    ${5:# Upgrade logic}",
+      "    $0",
+      "",
+      "def downgrade() -> None:",
+      "    ${6:# Downgrade logic}",
+      "    pass"
+    ],
+    "description": "Create Alembic migration structure"
+  },
+  "SQLAlchemy Model": {
+    "prefix": "sqlalchemy-model",
+    "body": [
+      "class ${1:ModelName}(Base):",
+      "    \"\"\"${2:Model description}\"\"\"",
+      "    ",
+      "    __tablename__ = \"${3:table_name}\"",
+      "    ",
+      "    id = Column(Integer, primary_key=True, index=True)",
+      "    ${4:field_name} = Column(${5:String}, ${6:nullable=False})",
+      "    created_at = Column(DateTime, default=datetime.utcnow)",
+      "    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)",
+      "    $0"
+    ],
+    "description": "Create SQLAlchemy model"
+  },
+  "Pydantic Schema": {
+    "prefix": "pydantic-schema",
+    "body": [
+      "class ${1:SchemaName}(BaseModel):",
+      "    \"\"\"${2:Schema description}\"\"\"",
+      "    ",
+      "    ${3:field_name}: ${4:str}",
+      "    $0",
+      "    ",
+      "    class Config:",
+      "        from_attributes = True"
+    ],
+    "description": "Create Pydantic schema"
+  },
+  "Repository Method": {
+    "prefix": "repo-method",
+    "body": [
+      "async def ${1:method_name}(",
+      "    self,",
+      "    db: AsyncSession,",
+      "    ${2:param}: ${3:type}",
+      ") -> ${4:Optional[Model]}:",
+      "    \"\"\"${5:Method description}\"\"\"",
+      "    result = await db.execute(",
+      "        select(${6:Model}).where(${6:Model}.${7:field} == ${2:param})",
+      "    )",
+      "    return result.scalar_one_or_none()",
+      "    $0"
+    ],
+    "description": "Create repository method"
+  },
+  "Service Method": {
+    "prefix": "service-method",
+    "body": [
+      "async def ${1:method_name}(",
+      "    self,",
+      "    ${2:param}: ${3:type},",
+      "    db: AsyncSession",
+      ") -> ${4:ReturnType}:",
+      "    \"\"\"${5:Method description}\"\"\"",
+      "    $0",
+      "    return result"
+    ],
+    "description": "Create service method"
+  },
+  "Python Docstring": {
+    "prefix": "docstring",
+    "body": [
+      "\"\"\"${1:Short description}",
+      "",
+      "${2:Longer description}",
+      "",
+      "Args:",
+      "    ${3:param}: ${4:Parameter description}",
+      "",
+      "Returns:",
+      "    ${5:Return description}",
+      "",
+      "Raises:",
+      "    ${6:Exception}: ${7:When this exception is raised}",
+      "\"\"\"",
+      "$0"
+    ],
+    "description": "Python docstring template"
+  }
+}
